@@ -1,0 +1,16 @@
+The BitCursor implementation was looking pretty good...but I realized it was overly generic: I was accepting
+some generic inner 'T', but in practice it was really just going to be a Vec<u8>: 'Cursor' can be more generic about
+what its inner type is, but BitCursor--because of its bit_pos field--was very clearly referring to a buffer of bytes
+that could be further addressed as bits.  With that in mind, I want to try and take another look at writing a more
+specific 'bytebuffer' that would provide methods to read at the byte, bytes, bit, and bits levels.  I do think I've learned
+more standard traits that I can implement for this type rather than more of my own (Read, Seek, etc.) that will hopefully
+distinguish this from some of my past attempts.  
+
+I ran into a bug where we read some bits to the end of the byte, so bit_pos was left at 8.  Then we tried to read more
+bits, but this check in 'read_bits_as_u8' hit: 'if self.bit_pos as usize + num_bits > 8' and threw an error.  I thought
+it would be nice to make this impossible by  using a newtype wrapper around a u8 for the 'bit position', so I started looking
+at that, but one issue with this is that we need the wrapping of the bit position to be obvious, because that triggers 
+resetting the current byte.  i then thought about creating a type that would wrap both of these concepts (the bit position
+and the cache for the current byte), but that started to feel like it would be doing almost everything that ByteBufferCursor
+was doing, so i fell back to just doing this logic in ByteBufferCursor directly, but i still find the bit position rollover
+handling awkward...maybe there's a good way to address that.
