@@ -3,6 +3,7 @@ use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use crate::bit_read::BitRead;
 use crate::helpers::get_u8_mask;
+use crate::sized_buffer::SizedByteBuffer;
 
 /// Similar to |std::io::Cursor| but designed to keep track of a buffer of bytes where amounts less
 /// than a single byte (i.e. some number of bits) can be read.
@@ -22,10 +23,6 @@ impl ByteBufferCursor {
         }
     }
 
-    pub fn bytes_remaining(&self) -> usize {
-        self.byte_cursor.get_ref().len() - self.byte_cursor.position() as usize
-    }
-
     fn increment_bit_pos(&mut self, num_bits: usize) {
         self.bit_pos += num_bits as u8;
         if self.bit_pos >= 8 {
@@ -40,6 +37,12 @@ impl Seek for ByteBufferCursor {
         self.bit_pos = 0;
         self.curr_byte = None;
         self.byte_cursor.seek(pos)
+    }
+}
+
+impl SizedByteBuffer for ByteBufferCursor {
+    fn bytes_remaining(&self) -> usize {
+        self.byte_cursor.get_ref().len() - self.byte_cursor.position() as usize
     }
 }
 
