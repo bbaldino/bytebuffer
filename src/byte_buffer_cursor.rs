@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use crate::bit_read::BitRead;
+use crate::byte_buffer_exts::ByteBufferExts;
 use crate::helpers::get_u8_mask;
 use crate::sized_buffer::SizedByteBuffer;
 
@@ -112,6 +113,12 @@ impl BitRead for ByteBufferCursor {
         let result = masked_byte >> (8 - num_bits as u8 - self.bit_pos);
         self.increment_bit_pos(num_bits);
         Ok(result)
+    }
+}
+
+impl ByteBufferExts for ByteBufferCursor {
+    fn peek_u8(&self) -> Result<u8, Box<dyn Error>> {
+        Ok(self.byte_cursor.get_ref()[self.byte_cursor.position() as usize])
     }
 }
 
