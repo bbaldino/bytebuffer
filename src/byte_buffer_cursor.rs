@@ -11,7 +11,6 @@ use crate::sized_buffer::SizedByteBuffer;
 #[derive(Debug)]
 pub struct ByteBufferCursor {
     byte_cursor: Cursor<Vec<u8>>,
-    curr_byte: Option<u8>,
     bit_pos: u8,
 }
 
@@ -19,7 +18,6 @@ impl ByteBufferCursor {
     pub fn new(data: Vec<u8>) -> Self {
         ByteBufferCursor {
             byte_cursor: Cursor::new(data),
-            curr_byte: None,
             bit_pos: 0,
         }
     }
@@ -28,7 +26,8 @@ impl ByteBufferCursor {
         self.bit_pos += num_bits as u8;
         if self.bit_pos >= 8 {
             self.bit_pos %= 8;
-            self.curr_byte = None;
+            self.byte_cursor
+                .set_position(self.byte_cursor.position() + 1)
         }
     }
 }
@@ -36,28 +35,25 @@ impl ByteBufferCursor {
 impl Seek for ByteBufferCursor {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64, std::io::Error> {
         self.bit_pos = 0;
-        self.curr_byte = None;
         self.byte_cursor.seek(pos)
     }
 }
 
 impl SizedByteBuffer for ByteBufferCursor {
     fn bytes_remaining(&self) -> usize {
-        self.byte_cursor.get_ref().len() - self.byte_cursor.position() as usize
+        match self.bit_pos {
+            0 => self.byte_cursor.get_ref().len() - self.byte_cursor.position() as usize,
+            // If we're in the middle of a byte, don't count that as a full byte remaining
+            // (Note that this is a somewhat arbitrary decision, but it's what makes more sense
+            // to me as of now)
+            _ => self.byte_cursor.get_ref().len() - self.byte_cursor.position() as usize - 1,
+        }
     }
 }
 
 impl ByteBufferCursor {
-    fn update_curr_byte(&mut self) -> Result<(), Box<dyn Error>> {
-        match self.curr_byte {
-            Some(_) => Ok(()),
-            None => {
-                let mut buf = [0; 1];
-                self.byte_cursor.read_exact(&mut buf)?;
-                self.curr_byte = Some(buf[0]);
-                Ok(())
-            }
-        }
+    fn get_current_byte(&self) -> Result<u8, Box<dyn Error>> {
+        Ok(self.byte_cursor.get_ref()[self.byte_cursor.position() as usize])
     }
 }
 
@@ -83,9 +79,8 @@ impl BitRead for ByteBufferCursor {
                 unreachable!("We shouldn't get here anymore!")
             }
             _ => {
-                self.update_curr_byte()?;
                 let mask = 0b10000000 >> self.bit_pos;
-                let masked_byte = self.curr_byte.unwrap() & mask;
+                let masked_byte = self.get_current_byte()? & mask;
                 // Calculate the shift amount before we advance self.bit_pos
                 let shift_amount = 7 - self.bit_pos;
                 self.increment_bit_pos(1);
@@ -107,9 +102,8 @@ impl BitRead for ByteBufferCursor {
             )
             .into());
         }
-        self.update_curr_byte()?;
         let mask = get_u8_mask(self.bit_pos as usize, num_bits)?;
-        let masked_byte = self.curr_byte.unwrap() & mask;
+        let masked_byte = self.get_current_byte()? & mask;
         let result = masked_byte >> (8 - num_bits as u8 - self.bit_pos);
         self.increment_bit_pos(num_bits);
         Ok(result)
