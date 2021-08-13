@@ -17,6 +17,9 @@ pub(crate) fn get_u8_mask(start_position: usize, num_bits: usize) -> Result<u8, 
         )
         .into());
     }
+    if num_bits == 0 {
+        return Ok(0);
+    }
     let mut mask = match num_bits {
         0 => 0,
         1 => 0b1,
