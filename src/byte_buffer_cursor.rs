@@ -1,9 +1,9 @@
-use std::error::Error;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 use crate::bit_read::BitRead;
 use crate::bit_write::BitWrite;
 use crate::byte_buffer_exts::ByteBufferExts;
+use crate::error::Error;
 use crate::helpers::get_u8_mask;
 use crate::sized_buffer::SizedByteBuffer;
 
@@ -59,13 +59,13 @@ impl SizedByteBuffer for ByteBufferCursor {
 impl ByteBufferCursor {
     /// Return a copy of the byte at the byte cursor's current position. |bit_pos|
     /// refers to the current position within this byte.
-    fn get_current_byte(&self) -> Result<u8, Box<dyn Error>> {
+    fn get_current_byte(&self) -> Result<u8, Error> {
         Ok(self.byte_cursor.get_ref()[self.byte_cursor.position() as usize])
     }
 
     /// Return a mutable reference to the byte at the byte cursor's current position. |bit_pos|
     /// refers to the current position within this byte.
-    fn get_current_byte_mut(&mut self) -> Result<&mut u8, Box<dyn Error>> {
+    fn get_current_byte_mut(&mut self) -> Result<&mut u8, Error> {
         let curr_pos = self.byte_cursor.position() as usize;
         Ok(&mut self.byte_cursor.get_mut()[curr_pos])
     }
@@ -87,7 +87,7 @@ impl Read for ByteBufferCursor {
 }
 
 impl BitRead for ByteBufferCursor {
-    fn read_bit(&mut self) -> Result<u8, Box<dyn Error>> {
+    fn read_bit(&mut self) -> Result<u8, Error> {
         match self.bit_pos {
             8 => {
                 unreachable!("We shouldn't get here anymore!")
@@ -103,18 +103,15 @@ impl BitRead for ByteBufferCursor {
         }
     }
 
-    fn read_bit_as_bool(&mut self) -> Result<bool, Box<dyn Error>> {
+    fn read_bit_as_bool(&mut self) -> Result<bool, Error> {
         Ok(self.read_bit()? > 0)
     }
 
-    fn read_bits_as_u8(&mut self, num_bits: usize) -> Result<u8, Box<dyn Error>> {
+    fn read_bits_as_u8(&mut self, num_bits: usize) -> Result<u8, Error> {
         if self.bit_pos as usize + num_bits > 8 {
             // We don't support reading bits across byte boundaries
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Cannot read bits across byte boundaries",
-            )
-            .into());
+            return Err(Error::InvalidCursorPosition(format!(
+                "requested to read {} bits, but cursor is currently in bit position {}, can't read bits across byte boundaries", num_bits, self.bit_pos)).into());
         }
         let mask = get_u8_mask(self.bit_pos as usize, num_bits)?;
         let masked_byte = self.get_current_byte()? & mask;
@@ -144,7 +141,7 @@ impl Write for ByteBufferCursor {
 }
 
 impl BitWrite for ByteBufferCursor {
-    fn write_bit(&mut self, bit: u8) -> Result<(), Box<dyn Error>> {
+    fn write_bit(&mut self, bit: u8) -> Result<(), Error> {
         let mask = !(0b10000000 >> self.bit_pos);
         let shift_amount = 7 - self.bit_pos;
         let curr_byte = self.get_current_byte_mut()?;
@@ -158,20 +155,17 @@ impl BitWrite for ByteBufferCursor {
         Ok(())
     }
 
-    fn write_bool(&mut self, b: bool) -> Result<(), Box<dyn Error>> {
+    fn write_bool(&mut self, b: bool) -> Result<(), Error> {
         self.write_bit(b.into())
     }
 
-    fn write_u8_as_bits(&mut self, v: u8, num_bits: usize) -> Result<(), Box<dyn Error>> {
+    fn write_u8_as_bits(&mut self, v: u8, num_bits: usize) -> Result<(), Error> {
         println!("Writing the right-most {} bits of {:#010b}", num_bits, v);
         let bit_pos = self.bit_pos;
         if bit_pos as usize + num_bits > 8 {
             // We don't support writing bits across byte boundaries
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Cannot write bits across byte boundaries",
-            )
-            .into());
+            return Err(Error::InvalidCursorPosition(format!(
+                "requested to write {} bits, but cursor is currently in bit position {}, can't write bits across byte boundaries", num_bits, self.bit_pos)).into());
         }
         let current_byte = self.get_current_byte_mut()?;
         println!("Current byte is {:#010b}", *current_byte);
@@ -207,7 +201,7 @@ impl BitWrite for ByteBufferCursor {
 }
 
 impl ByteBufferExts for ByteBufferCursor {
-    fn peek_u8(&self) -> Result<u8, Box<dyn Error>> {
+    fn peek_u8(&self) -> Result<u8, Error> {
         Ok(self.byte_cursor.get_ref()[self.byte_cursor.position() as usize])
     }
 }
@@ -312,7 +306,8 @@ mod tests {
     #[test]
     fn test_write() {
         let data: Vec<u8> = vec![0, 0, 0, 0];
-        let mut cursor = ByteBufferCursor::new(data);
+        let mut _cursor = ByteBufferCursor::new(data);
+        // TODO
     }
 
     #[test]

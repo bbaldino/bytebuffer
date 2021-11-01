@@ -1,20 +1,20 @@
-use std::error::Error;
+use crate::error::Error;
 
 /// Generate a u8 mask to retrieve only |num_bits| bits starting at |start_position|, where
 /// position 0 is the MSB of the byte and position 7 is the LSB.
-pub(crate) fn get_u8_mask(start_position: usize, num_bits: usize) -> Result<u8, Box<dyn Error>> {
+pub(crate) fn get_u8_mask(start_position: usize, num_bits: usize) -> Result<u8, Error> {
     if start_position + num_bits > 8 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "Number of bits would exceed byte boundary",
-        )
+        return Err(Error::InvalidMaskSize(format!(
+            "Number of bits would exceed byte boundary (current position {}, requested size {})",
+            start_position, num_bits
+        ))
         .into());
     }
     if num_bits > 8 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!("Invalid number of bits requested for u8 mask: {}", num_bits),
-        )
+        return Err(Error::InvalidMaskSize(format!(
+            "Invalid number of bits requested for u8 mask: {}",
+            num_bits
+        ))
         .into());
     }
     if num_bits == 0 {
