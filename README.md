@@ -1,5 +1,7 @@
 # bytebuffer
 
+Archived: This repo is superceded by [bitcursor](https://github.com/bbaldino/bitcursor)
+
 bytebuffer adds helper methods to make parsing fields smaller than a single byte from a buffer easier.
 
 `BitRead` and `BitWrite` traits are analogous to the `std::io::Read` and `std::io::Write` traits, 
